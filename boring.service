@@ -1,0 +1,15 @@
+[Unit]
+Description=boring
+Wants=network.target
+After=network-online.target
+Wants=network-online.target
+Wants=netbird.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/local/bin/boringup.sh
+WorkingDirectory=/tmp
+
+[Install]
+WantedBy=multi-user.target
