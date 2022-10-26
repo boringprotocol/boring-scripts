@@ -131,6 +131,21 @@ if [[ "$UPDATE" == "true" ]]; then
     systemctl start systemd-journal-gatewayd ||true
 	mkdir -p /usr/local/boring ||true
 
+	# dnsmasq host patch
+	cat <<EOZ > /etc/dnsmasq.conf
+interface=wlan0
+dhcp-range=192.168.4.2,192.168.4.100,255.255.255.0,24h
+domain=network
+address=/boring.network/192.168.4.1
+addn-hosts=/etc/dnsmasq.hosts
+EOZ
+
+	cat <<EOY > /etc/dnsmasq.hosts
+192.168.4.1 unconfigured.insecure.boring.surf.
+EOY
+
+	systemctl restart dnsmasq ||true
+
 	# cp telegraf.conf
 	cp /boringup/telegraf.conf /etc/telegraf/telegraf.conf
 
