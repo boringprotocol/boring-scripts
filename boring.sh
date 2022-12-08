@@ -130,21 +130,39 @@ if [[ "$UPDATE" == "true" ]]; then
 	systemctl enable systemd-journal-gatewayd ||true
     systemctl start systemd-journal-gatewayd ||true
 	mkdir -p /usr/local/boring ||true
+	cp /boringup/ip-is-in /usr/local/bin/ip-is-in
+
+	systemctl stop dnsmasq ||true
+	systemctl stop dhcpcd ||true
+
+	USE_THIS_IP=$(/usr/local/bin/ip-is-in)
+	read A B C D <<<"${USE_THIS_IP//./ }"
+cat <<EOKI > /etc/dhcpcd.conf
+interface wlan0
+	static ip_address=${USE_THIS_IP}/24
+	nohook wpa_supplicant
+EOKI
 
 	# dnsmasq host patch
 	cat <<EOZ > /etc/dnsmasq.conf
 interface=wlan0
-dhcp-range=192.168.4.2,192.168.4.100,255.255.255.0,24h
+dhcp-range=${A}.${B}.${C}.2,${A}.${B}.${C}.100,255.255.255.0,24h
 domain=network
-address=/boring.network/192.168.4.1
+address=/boring.network/${USE_THIS_IP}
 addn-hosts=/etc/dnsmasq.hosts
+no-resolv
+server=1.1.1.1
+server=1.0.0.1
+server=8.8.4.4
+server=8.8.8.8
 EOZ
 
 	cat <<EOY > /etc/dnsmasq.hosts
-192.168.4.1 unconfigured.insecure.boring.surf.
+${USE_THIS_IP} unconfigured.insecure.boring.surf.
 EOY
 
-	systemctl restart dnsmasq ||true
+	systemctl start dhcpcd ||true
+	systemctl start dnsmasq ||true
 
 	# cp telegraf.conf
 	cp /boringup/telegraf.conf /etc/telegraf/telegraf.conf
