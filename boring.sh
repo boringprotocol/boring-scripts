@@ -71,6 +71,81 @@ fi
 
 set -e
 
+
+# update-sidecar-connect-pi
+# update journald-remote
+# update telegraf.conf
+if [[ "$UPDATE" == "true" ]]; then
+	apt-get install -y systemd-journal-remote ||true
+	cp /boringup/systemd-journal-gatewayd.service /lib/systemd/system/systemd-journal-gatewayd.service ||true
+	systemctl enable systemd-journal-gatewayd ||true
+    systemctl start systemd-journal-gatewayd ||true
+	mkdir -p /usr/local/boring ||true
+	cp /boringup/ip-is-in /usr/local/bin/ip-is-in
+
+	systemctl stop dnsmasq ||true
+	#systemctl stop dhcpcd ||true
+
+	USE_THIS_IP=$(/usr/local/bin/ip-is-in)
+	read A B C D <<<"${USE_THIS_IP//./ }"
+cat <<EOKI > /etc/dhcpcd.conf
+interface wlan0
+	static ip_address=${USE_THIS_IP}/24
+	nohook wpa_supplicant
+EOKI
+
+	systemctl stop networking ||true
+
+	# dnsmasq host patch
+	cat <<EOZ > /etc/dnsmasq.conf
+interface=wlan0
+dhcp-range=${A}.${B}.${C}.2,${A}.${B}.${C}.100,255.255.255.0,24h
+domain=network
+address=/boring.network/${USE_THIS_IP}
+addn-hosts=/etc/dnsmasq.hosts
+no-resolv
+server=1.1.1.1
+server=1.0.0.1
+server=8.8.4.4
+server=8.8.8.8
+EOZ
+
+	cat <<EOY > /etc/dnsmasq.hosts
+${USE_THIS_IP} unconfigured.insecure.boring.surf.
+3.144.33.182 boring.surf.
+EOY
+
+	systemctl start networking ||true
+	#systemctl start dhcpcd ||true
+	systemctl start dnsmasq ||true
+
+	# cp telegraf.conf
+	cp /boringup/telegraf.conf /etc/telegraf/telegraf.conf
+
+	if [[ "$UPDATE_UI" == "true" ]]; then
+		cd /usr/local/boring
+		rm -rf connect-pi.tgz ||true
+		wget https://s3.us-east-2.amazonaws.com/boringfiles.dank.earth/connect-pi.tgz
+		tar -xzvf connect-pi.tgz
+		cd connect-pi
+		npm install -y
+		npm run build
+		#service file
+		cp connect-pi.service /lib/systemd/system/connect-pi.service
+		systemctl daemon-reload
+		systemctl restart connect-pi
+		# install nginx configure SSL for default insecure site ops
+		export DEBIAN_FRONTEND=true
+		apt install -y nginx
+		cp connect-pi.nginx.conf /etc/nginx/sites-enabled/default
+		systemctl enable nginx
+		mkdir -p /usr/local/boring/certs
+		cp fullchain.pem /usr/local/boring/certs/fullchain.pem
+		cp privkey.pem /usr/local/boring/certs/privkey.pem
+		systemctl restart nginx
+	fi
+fi
+
 if [[ "$HOSTAPD_RESET" == "true" || "$FIRSTBOOT" == "true" ]]; then
 # wifi preference has changed, run hostapd config
 		if [[ "$WIFI_PREFERENCE" == "2.4Ghz" ]]; then
@@ -120,76 +195,6 @@ EOJ
 fi
 
 cp /boot/boring.env /boot/1boring.env
-
-# update-sidecar-connect-pi
-# update journald-remote
-# update telegraf.conf
-if [[ "$UPDATE" == "true" ]]; then
-	apt-get install -y systemd-journal-remote ||true
-	cp /boringup/systemd-journal-gatewayd.service /lib/systemd/system/systemd-journal-gatewayd.service ||true
-	systemctl enable systemd-journal-gatewayd ||true
-    systemctl start systemd-journal-gatewayd ||true
-	mkdir -p /usr/local/boring ||true
-	cp /boringup/ip-is-in /usr/local/bin/ip-is-in
-
-	systemctl stop dnsmasq ||true
-	systemctl stop dhcpcd ||true
-
-	USE_THIS_IP=$(/usr/local/bin/ip-is-in)
-	read A B C D <<<"${USE_THIS_IP//./ }"
-cat <<EOKI > /etc/dhcpcd.conf
-interface wlan0
-	static ip_address=${USE_THIS_IP}/24
-	nohook wpa_supplicant
-EOKI
-
-	# dnsmasq host patch
-	cat <<EOZ > /etc/dnsmasq.conf
-interface=wlan0
-dhcp-range=${A}.${B}.${C}.2,${A}.${B}.${C}.100,255.255.255.0,24h
-domain=network
-address=/boring.network/${USE_THIS_IP}
-addn-hosts=/etc/dnsmasq.hosts
-no-resolv
-server=1.1.1.1
-server=1.0.0.1
-server=8.8.4.4
-server=8.8.8.8
-EOZ
-
-	cat <<EOY > /etc/dnsmasq.hosts
-${USE_THIS_IP} unconfigured.insecure.boring.surf.
-EOY
-
-	systemctl start dhcpcd ||true
-	systemctl start dnsmasq ||true
-
-	# cp telegraf.conf
-	cp /boringup/telegraf.conf /etc/telegraf/telegraf.conf
-
-	if [[ "$UPDATE_UI" == "true" ]]; then
-		cd /usr/local/boring
-		rm -rf connect-pi.tgz ||true
-		wget https://s3.us-east-2.amazonaws.com/boringfiles.dank.earth/connect-pi.tgz
-		tar -xzvf connect-pi.tgz
-		cd connect-pi
-		npm install -y
-		npm run build
-		#service file
-		cp connect-pi.service /lib/systemd/system/connect-pi.service
-		systemctl daemon-reload
-		systemctl restart connect-pi
-		# install nginx configure SSL for default insecure site ops
-		export DEBIAN_FRONTEND=true
-		apt install -y nginx
-		cp connect-pi.nginx.conf /etc/nginx/sites-enabled/default
-		systemctl enable nginx
-		mkdir -p /usr/local/boring/certs
-		cp fullchain.pem /usr/local/boring/certs/fullchain.pem
-		cp privkey.pem /usr/local/boring/certs/privkey.pem
-		systemctl restart nginx
-	fi
-fi
 
 if [[ "$KIND" == "consumer" ]]; then
 	echo "setting up consumer.."
