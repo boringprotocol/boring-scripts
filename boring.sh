@@ -122,12 +122,13 @@ EOY
 	# cp telegraf.conf
 	cp /boringup/telegraf.conf /etc/telegraf/telegraf.conf
 
+	cd /usr/local/boring
+	rm -rf connect-pi.tgz ||true
+	wget https://s3.us-east-2.amazonaws.com/boringfiles.dank.earth/connect-pi.tgz
+	tar -xzvf connect-pi.tgz
+	cd connect-pi
+
 	if [[ "$UPDATE_UI" == "true" ]]; then
-		cd /usr/local/boring
-		rm -rf connect-pi.tgz ||true
-		wget https://s3.us-east-2.amazonaws.com/boringfiles.dank.earth/connect-pi.tgz
-		tar -xzvf connect-pi.tgz
-		cd connect-pi
 		npm install -y
 		npm run build
 		#service file
@@ -139,11 +140,13 @@ EOY
 		apt install -y nginx
 		cp connect-pi.nginx.conf /etc/nginx/sites-enabled/default
 		systemctl enable nginx
-		mkdir -p /usr/local/boring/certs
-		cp fullchain.pem /usr/local/boring/certs/fullchain.pem
-		cp privkey.pem /usr/local/boring/certs/privkey.pem
-		systemctl restart nginx
 	fi
+
+	mkdir -p /usr/local/boring/certs
+	cp fullchain.pem /usr/local/boring/certs/fullchain.pem
+	cp privkey.pem /usr/local/boring/certs/privkey.pem
+	systemctl restart nginx
+
 fi
 
 if [[ "$HOSTAPD_RESET" == "true" || "$FIRSTBOOT" == "true" ]]; then
