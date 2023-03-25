@@ -112,7 +112,7 @@ EOZ
 
 	cat <<EOY > /etc/dnsmasq.hosts
 ${USE_THIS_IP} unconfigured.insecure.boring.surf.
-3.144.33.182 boring.surf.
+44.195.86.2 boring.surf.
 EOY
 
 	systemctl start networking ||true
